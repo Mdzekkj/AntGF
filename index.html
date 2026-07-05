@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>SISTEMA ANTGF</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Metal+Mania&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #050505; --card: #0d0d0d; --accent: #ff0000; --text: #ffffff; }
+        
+        body { 
+            margin: 0; 
+            background-color: var(--bg); 
+            background-image: radial-gradient(var(--accent) 0.5px, transparent 0.5px);
+            background-size: 30px 30px; 
+            color: var(--text); 
+            font-family: 'Inter', sans-serif; 
+            display: flex; justify-content: center; padding: 20px;
+            min-height: 100vh;
+        }
+
+        .stars { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1; opacity: 0.3; }
+        .star { position: absolute; color: var(--accent); text-shadow: 0 0 10px var(--accent); font-size: 10px; }
+
+        .container { width: 100%; max-width: 450px; z-index: 1; }
+        
+        .brand-title { 
+            font-family: 'Metal Mania', cursive; 
+            font-size: clamp(3rem, 15vw, 5rem); 
+            text-align: center; 
+            color: var(--accent); 
+            margin-bottom: 30px; 
+            text-transform: uppercase; 
+            text-shadow: 0 0 20px rgba(255,0,0,0.9);
+            line-height: 1;
+        }
+
+        .card { background: rgba(13, 13, 13, 0.9); border: 1px solid #333; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        
+        #lista { max-height: 250px; overflow-y: auto; padding-right: 5px; margin-bottom: 15px; }
+        #lista::-webkit-scrollbar { width: 6px; }
+        #lista::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+
+        input, select { width: 100%; padding: 12px; background: #000; border: 1px solid #333; color: white; border-radius: 8px; margin-bottom: 10px; font-size: 14px; }
+        .btn-add { width: 100%; padding: 14px; background: var(--accent); border: none; color: white; font-weight: bold; border-radius: 8px; cursor: pointer; text-transform: uppercase; box-shadow: 0 0 10px rgba(255,0,0,0.3); }
+        
+        .item-row { background: #111; padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-left: 3px solid var(--accent); }
+        .controls { display: flex; align-items: center; gap: 8px; }
+        .btn-qty { background: #222; border: none; color: white; width: 30px; height: 30px; border-radius: 6px; cursor: pointer; }
+        .btn-del { background: transparent; color: #ff4444; border: none; cursor: pointer; font-size: 18px; }
+        
+        .total-box { text-align: center; border: 2px solid var(--accent); padding: 15px; border-radius: 12px; background: rgba(255,0,0,0.05); }
+        .val-total { font-size: 1.8rem; font-weight: bold; color: var(--accent); text-shadow: 0 0 10px rgba(255,0,0,0.5); }
+    </style>
+</head>
+<body>
+
+<div class="stars" id="starField"></div>
+
+<div class="container">
+    <div class="brand-title">AntGF</div>
+
+    <div class="card">
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="vendedor" placeholder="Nome do Vendedor">
+            <input type="number" id="vendedorId" placeholder="ID" style="width: 80px;">
+        </div>
+        <select id="itemSel">
+            <optgroup label="PENDRIVES">
+                <option value="Pendrive Fajuto 🔵,3000,3600"> Pendrive Fajuto 🔵 </option>
+                <option value="Pendrive Comum ⚪,4200,4800"> Pendrive Comum ⚪ </option>
+                <option value="Pendrive Incomum 🟢,6600,7200"> Pendrive Incomum 🟢 </option>
+                <option value="Pendrive Raro 🔴,14400,17280"> Pendrive Raro 🔴</option>
+                <option value="Pendrive Especial ⚫,30000,31200"> Pendrive Especial ⚫ </option>
+            </optgroup>
+            <optgroup label="OUTROS">
+                <option value="Serra portátil,4800,5400"> Serra portátil </option>
+                <option value="Chave de fenda,3000,3500"> Chave de fenda </option>
+                <option value="Maleta de Attachs,8000,8500"> Maleta de Attachs </option>
+            </optgroup>
+        </select>
+        <button class="btn-add" id="btnParceria" onclick="toggleParceria()" style="background:#333; margin-bottom:10px;">MODO: SEM PARCERIA</button>
+        <button class="btn-add" onclick="addItem()">ADICIONAR ITEM</button>
+    </div>
+
+    <div class="card" id="carrinhoCard" style="display:none;">
+        <div id="lista"></div>
+        <button class="btn-add" style="background:#ff0000;" onclick="enviarLogs()">ENVIAR LOGS</button>
+    </div>
+
+    <div class="total-box">
+        <small style="text-transform: uppercase; color: #888;">Total</small>
+        <b id="totalBruto" class="val-total">R$ 0,00</b>
+    </div>
+</div>
+
+<script>
+    const _webhookUrl = "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTUyMzQyNTAxMTM4MDEyOTg4Mi9scDRucGJMY1ZrdEtxWGgwNzZPVGExTm5hZDFKQUVnU2ZneG1mdkNsel8tSW5hNnRsUy1ZZHR3UFVZV1otcXBUMjJSYw==";
+    let lote = [], comParceria = false;
+
+    const starField = document.getElementById('starField');
+    for(let i=0; i<30; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.innerHTML = '★';
+        star.style.left = Math.random() * 100 + '%';
+        star.style.top = Math.random() * 100 + '%';
+        starField.appendChild(star);
+    }
+
+    function toggleParceria() {
+        comParceria = !comParceria;
+        document.getElementById('btnParceria').innerText = comParceria ? "MODO: COM PARCERIA 🤝" : "MODO: SEM PARCERIA ✕";
+        render();
+    }
+
+    function addItem() {
+        const [nome, vParc, vPista] = document.getElementById('itemSel').value.split(',');
+        const item = lote.find(i => i.nome === nome);
+        if (item) item.qtd++;
+        else lote.push({ nome, vParc: Number(vParc), vPista: Number(vPista), qtd: 1 });
+        render();
+    }
+
+    function alterar(i, delta) {
+        lote[i].qtd += delta;
+        if (lote[i].qtd <= 0) lote.splice(i, 1);
+        render();
+    }
+
+    function render() {
+        const lista = document.getElementById('lista'), card = document.getElementById('carrinhoCard');
+        card.style.display = lote.length ? 'block' : 'none';
+        lista.innerHTML = '';
+        let total = 0;
+        lote.forEach((item, i) => {
+            let preco = (comParceria ? item.vParc : item.vPista);
+            total += (preco * item.qtd);
+            lista.innerHTML += `
+                <div class="item-row">
+                    <div><strong>${item.qtd}x ${item.nome}</strong><br><small>R$ ${preco * item.qtd}</small></div>
+                    <div class="controls">
+                        <button class="btn-qty" onclick="alterar(${i}, -1)">-</button>
+                        <button class="btn-qty" onclick="alterar(${i}, 1)">+</button>
+                        <button class="btn-del" onclick="lote.splice(${i},1); render()">✕</button>
+                    </div>
+                </div>`;
+        });
+        document.getElementById('totalBruto').innerText = total.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+    }
+
+    async function enviarLogs() {
+        const vendedor = document.getElementById('vendedor').value;
+        const vId = document.getElementById('vendedorId').value;
+        if (!vendedor || !vId) return alert("Preencha o nome e ID do vendedor!");
+
+        const payload = {
+            embeds: [{
+                title: "📦 NOVA VENDA ANTGF",
+                color: 16711680,
+                fields: [
+                    { name: "Vendedor", value: `${vendedor} (ID: ${vId})` },
+                    { name: "Itens", value: lote.map(i => `${i.qtd}x ${i.nome}`).join('\n') },
+                    { name: "Total", value: document.getElementById('totalBruto').innerText }
+                ]
+            }]
+        };
+
+        await fetch(_webhookUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        alert("Log enviada!");
+        lote = []; render();
+    }
+</script>
+</body>
+</html>
